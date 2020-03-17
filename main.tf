@@ -4,6 +4,12 @@ resource "random_string" "suffix" {
   special = false
 }
 
+resource "random_string" "diagnostics_suffix" {
+  length  = 8
+  special = false
+  upper   = false
+}
+
 ## Log Analytics
 # Workspace
 resource "azurerm_log_analytics_workspace" "log_analytics" {
@@ -17,7 +23,7 @@ resource "azurerm_log_analytics_workspace" "log_analytics" {
 }
 
 # Solutions
-resource "azurerm_log_analytics_solution" "networking_la" {
+resource "azurerm_log_analytics_solution" "log_analytics_solutions" {
   for_each = var.log_analytics_object.solution_plan_map
 
   solution_name         = each.value.name
@@ -36,39 +42,104 @@ resource "azurerm_log_analytics_solution" "networking_la" {
   ]
 }
 
-## Diagnostics
-# Traffic Analytics
-# resource "azurerm_network_watcher" "netwatcher" {
-#   count = local.checkifcreateconfig && local.checkifconfigpresent ? 1 : 0
+## Diagnostics Logs
+# Storage Account
+resource "azurerm_storage_account" "log" {
+  for_each = var.diagnostics_object.storage_accounts
 
-#   name                = var.nw_config.name
-#   location            = var.location
-#   resource_group_name = var.rg
-#   tags                = var.tags
+  name                      = "${each.value.name}${random_string.diagnostics_suffix.result}"
+  resource_group_name       = each.value.resource_group_name
+  location                  = each.value.location
+  account_kind              = each.value.account_kind
+  account_tier              = each.value.account_tier
+  account_replication_type  = each.value.account_replication_type
+  access_tier               = each.value.access_tier
+  enable_https_traffic_only = each.value.enable_https_traffic_only
+  tags                      = lookup(each.value, "tags", null) == null ? local.tags : merge(local.tags, each.value.tags)
+}
+
+# NSG Diagnostics
+resource "azurerm_monitor_diagnostic_setting" "nsg_diag" {
+  depends_on = [var.level0_NSG]
+
+  for_each = var.level0_NSG
+
+  name                       = var.diagnostics_object.nsg_diagnostics.name
+  target_resource_id         = each.value.id
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.log_analytics[var.diagnostics_object.nsg_diagnostics.log_analytics_workspace_key].id
+  log {
+
+    category = "NetworkSecurityGroupRuleCounter"
+    retention_policy {
+      days    = var.diagnostics_object.nsg_diagnostics.opslogs_retention_period
+      enabled = true
+
+    }
+  }
+  log {
+
+    category = "NetworkSecurityGroupEvent"
+    retention_policy {
+      days    = var.diagnostics_object.nsg_diagnostics.opslogs_retention_period
+      enabled = true
+
+    }
+  }
+}
+
+# Event Hub Namespace - CHECK IF REQUIRED
+# resource "azurerm_eventhub_namespace" "log" {
+#   for_each = var.diagnostics_object.event_hubs
+
+#   name                 = "${each.value.name}${random_string.diagnostics_suffix.result}"
+#   location             = each.value.location
+#   resource_group_name  = each.value.resource_group_name
+#   sku                  = each.value.sku
+#   capacity             = each.value.capacity
+#   auto_inflate_enabled = each.value.auto_inflate_enabled
+#   tags                 = lookup(each.value, "tags", null) == null ? local.tags : merge(local.tags, each.value.tags)
+#   # kafka_enabled       = true
 # }
 
-# resource "azurerm_network_watcher_flow_log" "nw_flow" {
+## Traffic Analytics
+# Network Watcher
+resource "azurerm_network_watcher" "netwatcher" {
+  for_each = var.networking_object.vnet
 
-#   for_each = local.nsg
+  name                = "${var.networking_object.netwatcher.name}${each.value.location}"
+  location            = each.value.location
+  resource_group_name = each.value.virtual_network_rg
+  tags                = lookup(var.networking_object.netwatcher.watchers, "tags", null) == null ? local.tags : merge(local.tags, var.networking_object.netwatcher.watchers.tags)
 
-#   # if we havent created the azurerm_network_watcher.netwatcher
-#   # then we take the value given (optional)
-#   network_watcher_name = local.checkifcreateconfig ? azurerm_network_watcher.netwatcher[0].name : var.netwatcher.name
-#   resource_group_name  = local.checkifcreateconfig ? var.rg : var.netwatcher.rg
+  depends_on = [
+      local.vnets
+  ]
+}
 
-#   network_security_group_id = each.value.id
-#   storage_account_id        = var.diagnostics_map.diags_sa
-#   enabled                   = lookup(var.nw_config, "flow_logs_settings", {}) != {} ? var.nw_config.flow_logs_settings.enabled : false
+# NSG Flow Logs
+resource "azurerm_network_watcher_flow_log" "nsg_flow" {
+  for_each = var.level0_NSG
 
-#   retention_policy {
-#     enabled = lookup(var.nw_config, "flow_logs_settings", {}) != {} ? var.nw_config.flow_logs_settings.retention : false
-#     days    = lookup(var.nw_config, "flow_logs_settings", {}) != {} ? var.nw_config.flow_logs_settings.period : 7
-#   }
+  network_watcher_name = "${var.networking_object.netwatcher.name}${each.value.location}"
+  resource_group_name  = each.value.resource_group_name
 
-#   traffic_analytics {
-#     enabled               = lookup(var.nw_config, "traffic_analytics_settings", {}) != {} ? var.nw_config.traffic_analytics_settings.enabled : false
-#     workspace_id          = var.log_analytics_workspace.object.workspace_id
-#     workspace_region      = var.log_analytics_workspace.object.location
-#     workspace_resource_id = var.log_analytics_workspace.object.id
-#   }
-# }
+  network_security_group_id = each.value.id
+  storage_account_id        = azurerm_storage_account.log[var.networking_object.netwatcher.storage_account_key].id
+  enabled                   = lookup(var.networking_object.netwatcher, "flow_logs_settings", {}) != {} ? var.networking_object.netwatcher.flow_logs_settings.enabled : false
+
+  retention_policy {
+    enabled = lookup(var.networking_object.netwatcher, "flow_logs_settings", {}) != {} ? var.networking_object.netwatcher.flow_logs_settings.retention : false
+    days    = lookup(var.networking_object.netwatcher, "flow_logs_settings", {}) != {} ? var.networking_object.netwatcher.flow_logs_settings.period : 7
+  }
+
+  traffic_analytics {
+    enabled               = lookup(var.networking_object.netwatcher, "traffic_analytics_settings", {}) != {} ? var.networking_object.netwatcher.traffic_analytics_settings.enabled : false
+    workspace_id          = azurerm_log_analytics_workspace.log_analytics[var.networking_object.netwatcher.log_analytics_workspace_key].workspace_id
+    workspace_region      = azurerm_log_analytics_workspace.log_analytics[var.networking_object.netwatcher.log_analytics_workspace_key].location
+    workspace_resource_id = azurerm_log_analytics_workspace.log_analytics[var.networking_object.netwatcher.log_analytics_workspace_key].id
+  }
+
+  depends_on = [
+    azurerm_network_watcher.netwatcher
+  ]
+}

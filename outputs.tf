@@ -7,8 +7,7 @@ output "log_analytics_obj" {
 
 output "log_analytics_solution_obj" {
   description = "Output a list of Log Analytics Solutions"
-    depends_on  = [azurerm_log_analytics_solution.networking_la]
+    depends_on  = [azurerm_log_analytics_solution.log_analytics_solutions]
 
-  value      = azurerm_log_analytics_solution.networking_la
+  value      = azurerm_log_analytics_solution.log_analytics_solutions
 }
-
