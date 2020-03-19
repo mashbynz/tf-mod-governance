@@ -116,30 +116,31 @@ resource "azurerm_network_watcher" "netwatcher" {
   ]
 }
 
-# NSG Flow Logs
-resource "azurerm_network_watcher_flow_log" "nsg_flow" {
-  for_each = var.level0_NSG
+### NOT SUPPORTED IN AU CENTRAL 1 OR 2 ###
+# # NSG Flow Logs
+# resource "azurerm_network_watcher_flow_log" "nsg_flow" {
+#   for_each = var.level0_NSG
 
-  network_watcher_name = "${var.networking_object.netwatcher.name}${each.value.location}"
-  resource_group_name  = each.value.resource_group_name
+#   network_watcher_name = "${var.networking_object.netwatcher.name}${each.value.location}"
+#   resource_group_name  = each.value.resource_group_name
 
-  network_security_group_id = each.value.id
-  storage_account_id        = azurerm_storage_account.log[var.networking_object.netwatcher.storage_account_key].id
-  enabled                   = lookup(var.networking_object.netwatcher, "flow_logs_settings", {}) != {} ? var.networking_object.netwatcher.flow_logs_settings.enabled : false
+#   network_security_group_id = each.value.id
+#   storage_account_id        = azurerm_storage_account.log[var.networking_object.netwatcher.storage_account_key].id
+#   enabled                   = lookup(var.networking_object.netwatcher, "flow_logs_settings", {}) != {} ? var.networking_object.netwatcher.flow_logs_settings.enabled : false
 
-  retention_policy {
-    enabled = lookup(var.networking_object.netwatcher, "flow_logs_settings", {}) != {} ? var.networking_object.netwatcher.flow_logs_settings.retention : false
-    days    = lookup(var.networking_object.netwatcher, "flow_logs_settings", {}) != {} ? var.networking_object.netwatcher.flow_logs_settings.period : 7
-  }
+#   retention_policy {
+#     enabled = lookup(var.networking_object.netwatcher, "flow_logs_settings", {}) != {} ? var.networking_object.netwatcher.flow_logs_settings.retention : false
+#     days    = lookup(var.networking_object.netwatcher, "flow_logs_settings", {}) != {} ? var.networking_object.netwatcher.flow_logs_settings.period : 7
+#   }
 
-  traffic_analytics {
-    enabled               = lookup(var.networking_object.netwatcher, "traffic_analytics_settings", {}) != {} ? var.networking_object.netwatcher.traffic_analytics_settings.enabled : false
-    workspace_id          = azurerm_log_analytics_workspace.log_analytics[var.networking_object.netwatcher.log_analytics_workspace_key].workspace_id
-    workspace_region      = azurerm_log_analytics_workspace.log_analytics[var.networking_object.netwatcher.log_analytics_workspace_key].location
-    workspace_resource_id = azurerm_log_analytics_workspace.log_analytics[var.networking_object.netwatcher.log_analytics_workspace_key].id
-  }
+#   traffic_analytics {
+#     enabled               = lookup(var.networking_object.netwatcher, "traffic_analytics_settings", {}) != {} ? var.networking_object.netwatcher.traffic_analytics_settings.enabled : false
+#     workspace_id          = azurerm_log_analytics_workspace.log_analytics[var.networking_object.netwatcher.log_analytics_workspace_key].workspace_id
+#     workspace_region      = azurerm_log_analytics_workspace.log_analytics[var.networking_object.netwatcher.log_analytics_workspace_key].location
+#     workspace_resource_id = azurerm_log_analytics_workspace.log_analytics[var.networking_object.netwatcher.log_analytics_workspace_key].id
+#   }
 
-  depends_on = [
-    azurerm_network_watcher.netwatcher
-  ]
-}
+#   depends_on = [
+#     azurerm_network_watcher.netwatcher
+#   ]
+# }
