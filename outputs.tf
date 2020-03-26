@@ -11,3 +11,10 @@ output "log_analytics_solution_obj" {
 
   value      = azurerm_log_analytics_solution.log_analytics_solutions
 }
+
+output "storage_account_obj" {
+  description = "Output a list of Storage Accounts"
+    depends_on  = [azurerm_storage_account.log]
+
+  value      = azurerm_storage_account.log
+}

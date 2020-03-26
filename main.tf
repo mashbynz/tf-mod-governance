@@ -104,16 +104,12 @@ resource "azurerm_monitor_diagnostic_setting" "nsg_diag" {
 ## Traffic Analytics
 # Network Watcher
 resource "azurerm_network_watcher" "netwatcher" {
-  for_each = var.networking_object.vnet
+  for_each = var.networking_object.netwatcher.watchers
 
   name                = "${var.networking_object.netwatcher.name}${each.value.location}"
   location            = each.value.location
   resource_group_name = each.value.virtual_network_rg
-  tags                = lookup(var.networking_object.netwatcher.watchers, "tags", null) == null ? local.tags : merge(local.tags, var.networking_object.netwatcher.watchers.tags)
-
-  depends_on = [
-      local.vnets
-  ]
+  tags                = lookup(each.value, "tags", null) == null ? local.tags : merge(local.tags, each.value.tags)
 }
 
 ### NOT SUPPORTED IN AU CENTRAL 1 OR 2 ###
